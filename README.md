@@ -1,26 +1,27 @@
 # ChaiGPT
 
-A ChatGPT-style AI chat app built with Next.js. Sign in, start a conversation, and stream replies from an OpenAI model in real time — with persistent history, a sidebar of chats, pin/rename/delete, and light/dark theming.
+A ChatGPT-style AI chat app built with Next.js. Sign in, start a conversation, and stream replies from an OpenAI model in real time — with persistent history, a sidebar of chats, pin/rename/delete, on-demand web search with cited sources, conversation branching, and light/dark theming.
 
 ## Tech stack
 
-| Layer          | Choice                                                                |
-| -------------- | --------------------------------------------------------------------- |
-| Framework      | [Next.js 16](https://nextjs.org) (App Router, Server Actions)         |
-| Language       | TypeScript                                                            |
-| Auth           | [Clerk](https://clerk.com)                                            |
-| Database       | PostgreSQL via [Prisma](https://www.prisma.io) (`@prisma/adapter-pg`) |
-| AI / streaming | [Vercel AI SDK](https://ai-sdk.dev) + `@ai-sdk/openai`                |
-| Data fetching  | [TanStack Query](https://tanstack.com/query)                          |
-| UI             | Tailwind CSS v4, shadcn/ui, Base UI, `next-themes`                    |
+| Layer          | Choice                                                                 |
+| -------------- | ---------------------------------------------------------------------- |
+| Framework      | [Next.js 16](https://nextjs.org) (App Router, Server Actions)          |
+| Language       | TypeScript                                                             |
+| Auth           | [Clerk](https://clerk.com)                                             |
+| Database       | PostgreSQL via [Prisma](https://www.prisma.io) (`@prisma/adapter-pg`)  |
+| AI / streaming | [Vercel AI SDK](https://ai-sdk.dev) + `@ai-sdk/openai` (Responses API) |
+| Data fetching  | [TanStack Query](https://tanstack.com/query)                           |
+| UI             | Tailwind CSS v4, shadcn/ui, Base UI, `next-themes`                     |
 
 ## Features
 
-- Email/social sign-in with Clerk; users are synced into the database on first visit.
-- Create, rename, pin, archive, and delete conversations from the sidebar.
-- Streaming AI responses (via `POST /api/chat`) with messages persisted to Postgres as they arrive.
-- Optimistic-friendly caching and invalidation with TanStack Query.
-- Light/dark theme toggle.
+- **Auth & onboarding.** Sign-in with Clerk; a `User` row is created automatically the first time someone lands on `/`, before they're dropped into a new chat.
+- **Streaming chat.** Replies stream token-by-token from `POST /api/chat` and are persisted to Postgres as they arrive.
+- **Web search.** A "Search" toggle in the composer forces OpenAI's built-in `web_search` tool on; even with it off, the model is instructed to search whenever a question needs current information. Search status ("Searching the web for…") and source-domain links render inline under the reply.
+- **Conversation management.** Create, rename, pin/unpin, and delete conversations from the sidebar, sorted pinned-first then by recent activity.
+- **Branching.** Hovering any message reveals a small branch icon. Clicking it clones the conversation — up to and including that message — into a new chat titled `branch - <original title>`, so you can explore a different reply or direction without losing the original thread.
+- **Theming.** Light/Dark/System toggle with a checkmark showing the active mode.
 
 ## Project structure
 
@@ -29,10 +30,10 @@ Application code is organized **by feature**, not by file type. Each feature und
 ```
 features/
 ├── auth/            Clerk-backed auth helpers (requireUser, onBoard)
-├── conversation/     Conversation CRUD, sidebar UI, chat shell layout
-├── messages/         Message CRUD, chat thread UI (composer, bubbles, empty state)
-├── ai/               Chat model config + AI SDK message persistence (chat-store)
-└── home/             Logic for the "/" route (starts a new chat)
+├── conversation/     Conversation CRUD + branching, sidebar UI, chat shell layout
+├── messages/         Message rendering, composer (incl. search toggle), branch button
+├── ai/               Chat model config (Responses API) + AI SDK message persistence (chat-store)
+└── home/             Logic for the "/" route (onboards + starts a new chat, or shows the landing page)
 ```
 
 Each feature exposes a barrel `index.ts` so you can import from the feature root, e.g.:
@@ -45,21 +46,26 @@ Everything else follows standard Next.js App Router conventions:
 
 ```
 app/
-├── (auth)/                 Sign-in route group (public)
-├── (root)/                 Authenticated route group
-│   ├── layout.tsx          Protects routes, runs onboarding, renders ChatShell
-│   ├── page.tsx            "/" → creates a new chat and redirects to it
-│   └── c/[id]/page.tsx      "/c/:id" → loads a conversation + its messages
-├── api/chat/route.ts        Streaming chat endpoint (AI SDK)
-└── layout.tsx               Root layout: Clerk, React Query, theme, toasts
+├── page.tsx                 "/" — onboards + redirects a signed-in user into a new chat,
+│                             or renders the landing page for signed-out visitors
+├── (auth)/                  Sign-in route group (public)
+│   └── sign-in/[[...sign-in]]/  Clerk's sign-in page
+├── (root)/                  Authenticated route group
+│   ├── layout.tsx           Protects routes, re-runs onboarding, renders ChatShell (sidebar + content)
+│   └── c/[id]/page.tsx      "/c/:id" → loads one conversation + its message history
+├── api/chat/route.ts        Streaming chat endpoint — registers the web_search tool,
+│                             forces it when the client's search toggle is on, saves messages
+└── layout.tsx                Root layout: Clerk, React Query, theme, toasts
 
 components/
-├── ui/                      shadcn/ui primitives (button, dialog, sidebar, ...)
+├── ui/                      shadcn/ui primitives (button, dialog, sidebar, toggle, dropdown-menu, ...)
 ├── ai-elements/              AI SDK UI building blocks (message, conversation, loader)
 └── providers/                App-wide providers (React Query, theme)
 
 lib/                          Shared, non-feature infra (db client, query key factory, cn util)
 prisma/                       Schema + migrations
+proxy.ts                      Clerk middleware (Next 16's proxy.ts) — protects routes,
+                              explicitly sets signInUrl: "/sign-in"
 ```
 
 When adding new functionality, prefer creating/extending a feature folder over dropping files into `lib/` or `components/` — those are reserved for truly cross-feature/shared code.
@@ -89,12 +95,12 @@ Copy `.env.example` to `.env` and fill in your own values:
 cp .env.example .env
 ```
 
-| Variable                            | Description                              |
-| ----------------------------------- | ---------------------------------------- |
-| `DATABASE_URL`                      | PostgreSQL connection string             |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key                    |
-| `CLERK_SECRET_KEY`                  | Clerk secret key                         |
-| `OPENAI_API_KEY`                    | OpenAI API key used for chat completions |
+| Variable                            | Description                                                   |
+| ----------------------------------- | ------------------------------------------------------------- |
+| `DATABASE_URL`                      | PostgreSQL connection string                                  |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk publishable key                                         |
+| `CLERK_SECRET_KEY`                  | Clerk secret key                                              |
+| `OPENAI_API_KEY`                    | OpenAI API key — used for chat completions **and** web search |
 
 ### 3. Set up the database
 
@@ -126,7 +132,7 @@ Open [http://localhost:3000](http://localhost:3000). Signing in for the first ti
 The schema (`prisma/schema.prisma`) has three models:
 
 - **User** — mirrors the Clerk user (`clerkId` is the link back to Clerk).
-- **Conversation** — a chat thread; tracks title, pin/archive state, and `lastMessageAt` for sidebar ordering.
-- **Message** — a single turn in a conversation; stores both plain `content` and the raw AI SDK `parts` (text/tool calls/etc.) so the UI can be fully reconstructed.
+- **Conversation** — a chat thread; tracks title, an optional per-thread `model`/`systemPrompt` override, pin/archive state, and `lastMessageAt` for sidebar ordering.
+- **Message** — a single turn in a conversation; stores both plain `content` and the raw AI SDK `parts` (text, tool calls, search sources) so the UI — including search status and source links — can be fully reconstructed on reload. A `parentId` column exists for future message-level branching, though the current branching feature works at the conversation level (cloning into a new chat).
 
 Run `npx prisma studio` to browse data locally.
