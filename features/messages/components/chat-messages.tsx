@@ -23,25 +23,33 @@ function getMessageText(message: UIMessage) {
 
 type MessagePart = UIMessage["parts"][number];
 
-// No explicit `: part is X` annotation here — TypeScript 5.5+ automatically infers a type
-// predicate for a function whose body is a single `return x.prop === "literal"` statement.
-// (A hand-written predicate against `Extract<MessagePart, { type: "tool-web_search" }>` doesn't
-// work here: the SDK's tool part discriminant is typed as the template literal `tool-${string}`,
-// which doesn't structurally extend the specific literal "tool-web_search", so Extract collapses
-// to `never`. Letting TS infer the predicate from the equality check sidesteps that entirely.)
-function isWebSearchToolPart(part: MessagePart) {
-  return part.type === "tool-web_search";
-}
-
-function isSourceUrlPart(part: MessagePart) {
-  return part.type === "source-url";
-}
-
-type WebSearchToolPart = {
+// `MessagePart & {...}` (not `Extract<MessagePart, {...}>`) is what makes this work: the SDK
+// types a tool part's discriminant as the template literal `tool-${string}`, which does NOT
+// structurally extend the specific literal "tool-web_search" — so `Extract` collapses to `never`.
+// An intersection instead just adds these fields on top of MessagePart, and is trivially
+// assignable back to MessagePart, which satisfies TS's "predicate type must be assignable to
+// the parameter type" rule without depending on any inference behavior.
+type WebSearchToolPart = MessagePart & {
+  type: "tool-web_search";
   toolCallId: string;
   state: "input-streaming" | "input-available" | "output-available" | "output-error";
   input?: unknown;
 };
+
+function isWebSearchToolPart(part: MessagePart): part is WebSearchToolPart {
+  return part.type === "tool-web_search";
+}
+
+type SourceUrlPart = MessagePart & {
+  type: "source-url";
+  sourceId: string;
+  url: string;
+  title?: string;
+};
+
+function isSourceUrlPart(part: MessagePart): part is SourceUrlPart {
+  return part.type === "source-url";
+}
 
 function SearchStatus({ part }: { part: WebSearchToolPart }) {
   const isSearching = part.state === "input-streaming" || part.state === "input-available";
@@ -62,12 +70,6 @@ function SearchStatus({ part }: { part: WebSearchToolPart }) {
     </div>
   );
 }
-
-type SourceUrlPart = {
-  sourceId: string;
-  url: string;
-  title?: string;
-};
 
 function SourceList({ sources }: { sources: SourceUrlPart[] }) {
   if (sources.length === 0) return null;
