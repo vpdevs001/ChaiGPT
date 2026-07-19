@@ -6,6 +6,7 @@ import {
   toUIMessageStream,
   type UIMessage,
 } from "ai";
+import { openai } from "@ai-sdk/openai";
 import { auth } from "@clerk/nextjs/server";
 
 import { getChatModel } from "@/features/ai/utils/models";
@@ -15,10 +16,19 @@ import { prisma } from "@/lib/db";
 
 export const maxDuration = 30;
 
+const SYSTEM_PROMPT =
+  "You are ChaiGPT, a helpful assistant. Use the web_search tool whenever the user asks " +
+  "about something that may have happened after your training cutoff, or that otherwise " +
+  "needs current, up-to-date, or real-time information.";
+
 export async function POST(req: Request) {
   await auth.protect();
 
-  const { message, id }: { message: UIMessage; id: string } = await req.json();
+  const {
+    message,
+    id,
+    searchEnabled,
+  }: { message: UIMessage; id: string; searchEnabled?: boolean } = await req.json();
 
   if (!message || !id) {
     return new Response("Missing message or conversation id", { status: 400 });
@@ -43,8 +53,14 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: getChatModel(conversation.model),
-    system: conversation.systemPrompt ?? "You are ChaiGPT, a helpful assistant.",
+    system: conversation.systemPrompt ?? SYSTEM_PROMPT,
     messages: await convertToModelMessages(messages),
+    tools: {
+      web_search: openai.tools.webSearch({}),
+    },
+    // When the user has the search toggle on, force a search on every turn instead of
+    // leaving it to the model's judgement.
+    ...(searchEnabled ? { toolChoice: { type: "tool", toolName: "web_search" } } : {}),
   });
 
   // Keep saving even if the browser disconnects mid-stream.

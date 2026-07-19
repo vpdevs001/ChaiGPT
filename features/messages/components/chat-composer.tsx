@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowUpIcon } from "lucide-react";
+import { ArrowUpIcon, GlobeIcon } from "lucide-react";
 
 import {
   InputGroup,
@@ -10,6 +10,7 @@ import {
   InputGroupTextarea,
 } from "@/components/ui/input-group";
 import { Spinner } from "@/components/ui/spinner";
+import { Toggle } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 
 type ChatComposerProps = {
@@ -18,6 +19,8 @@ type ChatComposerProps = {
   placeholder?: string;
   className?: string;
   autoFocus?: boolean;
+  searchEnabled?: boolean;
+  onSearchEnabledChange?: (enabled: boolean) => void;
 };
 
 export function ChatComposer({
@@ -26,6 +29,8 @@ export function ChatComposer({
   placeholder = "Message ChaiGPT…",
   className,
   autoFocus = false,
+  searchEnabled = false,
+  onSearchEnabledChange,
 }: ChatComposerProps) {
   const [value, setValue] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -71,6 +76,29 @@ export function ChatComposer({
           rows={1}
           className="max-h-48 min-h-12 py-3.5 pl-4 text-[15px] leading-relaxed"
         />
+        <InputGroupAddon align="inline-start" className="pb-2 pl-2 self-end">
+          <Toggle
+            pressed={searchEnabled}
+            onPressedChange={onSearchEnabledChange}
+            size="sm"
+            variant="outline"
+            className={cn(
+              "group gap-1.5 rounded-full border px-3 text-xs font-medium transition-all duration-200 ease-out",
+              searchEnabled
+                ? "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                : "border-border/80 bg-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground",
+            )}
+            aria-label="Search the web"
+          >
+            <GlobeIcon
+              className={cn(
+                "size-3.5 transition-transform duration-200",
+                searchEnabled && "scale-110",
+              )}
+            />
+            Search
+          </Toggle>
+        </InputGroupAddon>
         <InputGroupAddon align="inline-end" className="pr-2 pb-2 self-end">
           <InputGroupButton
             type="submit"

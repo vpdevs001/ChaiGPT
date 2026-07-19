@@ -22,13 +22,16 @@ type ConversationViewProps = {
 export function ConversationView({ conversationId, initialMessages }: ConversationViewProps) {
   const queryClient = useQueryClient();
   const { data: conversations } = useConversations();
+  const [searchEnabled, setSearchEnabled] = React.useState(false);
+  const searchEnabledRef = React.useRef(searchEnabled);
+  searchEnabledRef.current = searchEnabled;
 
   const transport = React.useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
         prepareSendMessagesRequest: ({ id, messages }) => ({
-          body: { id, message: messages.at(-1) },
+          body: { id, message: messages.at(-1), searchEnabled: searchEnabledRef.current },
         }),
       }),
     [],
@@ -66,6 +69,8 @@ export function ConversationView({ conversationId, initialMessages }: Conversati
         }}
         isSending={status !== "ready"}
         autoFocus
+        searchEnabled={searchEnabled}
+        onSearchEnabledChange={setSearchEnabled}
       />
     </div>
   );

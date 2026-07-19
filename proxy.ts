@@ -12,11 +12,17 @@ const isPublicRoute = createRouteMatcher(["/sign-in(.*)"]);
  * Protects every request except those matching {@link isPublicRoute}, redirecting
  * unauthenticated users to sign in.
  */
-export default clerkMiddleware(async (auth, req) => {
-  if (!isPublicRoute(req)) {
-    await auth.protect();
-  }
-});
+export default clerkMiddleware(
+  async (auth, req) => {
+    if (!isPublicRoute(req)) {
+      await auth.protect();
+    }
+  },
+  // Passed directly (rather than via NEXT_PUBLIC_CLERK_SIGN_IN_URL) because the env var
+  // resolves empty on Next.js 16's Node-runtime proxy.ts (Clerk issue #8302), which makes
+  // auth.protect() redirect back to the same page instead of /sign-in.
+  { signInUrl: "/sign-in" },
+);
 
 export const config = {
   matcher: [
