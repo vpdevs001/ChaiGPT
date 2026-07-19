@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { queryKeys } from "@/lib/query-keys";
 import {
+  branchConversation,
   createConversation,
   deleteConversation,
   listConversations,
@@ -63,6 +64,27 @@ export function useUpdateConversation() {
     },
     onError: (error: Error) => {
       toast.error(error.message || "Could not update chat");
+    },
+  });
+}
+
+/** Clone a chat (optionally up to one message) into a new "branch - …" chat, then navigate to it. */
+export function useBranchConversation() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  return useMutation({
+    mutationFn: ({ conversationId, messageId }: { conversationId: string; messageId?: string }) =>
+      branchConversation(conversationId, messageId),
+    onSuccess: (conversation) => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.conversations.all,
+      });
+      router.push(`/c/${conversation.id}`);
+      toast.success("Branched into a new chat");
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Could not branch chat");
     },
   });
 }

@@ -11,7 +11,10 @@ import { ChatEmpty } from "@/features/messages/components/chat-empty";
 import { ChatMessages } from "@/features/messages/components/chat-messages";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useConversations } from "@/features/conversation/hooks/use-conversations";
+import {
+  useBranchConversation,
+  useConversations,
+} from "@/features/conversation/hooks/use-conversations";
 import { queryKeys } from "@/lib/query-keys";
 
 type ConversationViewProps = {
@@ -22,6 +25,7 @@ type ConversationViewProps = {
 export function ConversationView({ conversationId, initialMessages }: ConversationViewProps) {
   const queryClient = useQueryClient();
   const { data: conversations } = useConversations();
+  const branchMutation = useBranchConversation();
   const [searchEnabled, setSearchEnabled] = React.useState(false);
   const searchEnabledRef = React.useRef(searchEnabled);
   searchEnabledRef.current = searchEnabled;
@@ -61,7 +65,18 @@ export function ConversationView({ conversationId, initialMessages }: Conversati
         <h1 className="truncate text-sm font-medium">{title}</h1>
       </header>
 
-      {messages.length === 0 ? <ChatEmpty /> : <ChatMessages messages={messages} status={status} />}
+      {messages.length === 0 ? (
+        <ChatEmpty />
+      ) : (
+        <ChatMessages
+          messages={messages}
+          status={status}
+          onBranch={(messageId) => branchMutation.mutate({ conversationId, messageId })}
+          branchingMessageId={
+            branchMutation.isPending ? branchMutation.variables?.messageId : undefined
+          }
+        />
+      )}
 
       <ChatComposer
         onSend={(text) => {

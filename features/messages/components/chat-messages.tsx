@@ -1,6 +1,6 @@
 "use client";
 
-import { GlobeIcon, SearchIcon } from "lucide-react";
+import { GitBranchIcon, GlobeIcon, SearchIcon } from "lucide-react";
 import { isTextUIPart, type UIMessage } from "ai";
 import type { ChatStatus } from "ai";
 
@@ -11,6 +11,7 @@ import {
 } from "@/components/ai-elements/conversation";
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { Loader } from "@/components/ai-elements/loader";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 function getMessageText(message: UIMessage) {
@@ -20,31 +21,31 @@ function getMessageText(message: UIMessage) {
     .join("");
 }
 
-type WebSearchToolPart = {
-  type: "tool-web_search";
-  toolCallId: string;
-  state: "input-streaming" | "input-available" | "output-available" | "output-error";
-  input?: { query?: string };
-};
+type MessagePart = UIMessage["parts"][number];
 
-function isWebSearchToolPart(part: UIMessage["parts"][number]): part is WebSearchToolPart {
+// No explicit `: part is X` annotation here — TypeScript 5.5+ automatically infers a type
+// predicate for a function whose body is a single `return x.prop === "literal"` statement.
+// (A hand-written predicate against `Extract<MessagePart, { type: "tool-web_search" }>` doesn't
+// work here: the SDK's tool part discriminant is typed as the template literal `tool-${string}`,
+// which doesn't structurally extend the specific literal "tool-web_search", so Extract collapses
+// to `never`. Letting TS infer the predicate from the equality check sidesteps that entirely.)
+function isWebSearchToolPart(part: MessagePart) {
   return part.type === "tool-web_search";
 }
 
-type SourceUrlPart = {
-  type: "source-url";
-  sourceId: string;
-  url: string;
-  title?: string;
-};
-
-function isSourceUrlPart(part: UIMessage["parts"][number]): part is SourceUrlPart {
+function isSourceUrlPart(part: MessagePart) {
   return part.type === "source-url";
 }
 
+type WebSearchToolPart = {
+  toolCallId: string;
+  state: "input-streaming" | "input-available" | "output-available" | "output-error";
+  input?: unknown;
+};
+
 function SearchStatus({ part }: { part: WebSearchToolPart }) {
   const isSearching = part.state === "input-streaming" || part.state === "input-available";
-  const query = part.input?.query;
+  const query = (part.input as { query?: string } | undefined)?.query;
 
   return (
     <div
@@ -61,6 +62,12 @@ function SearchStatus({ part }: { part: WebSearchToolPart }) {
     </div>
   );
 }
+
+type SourceUrlPart = {
+  sourceId: string;
+  url: string;
+  title?: string;
+};
 
 function SourceList({ sources }: { sources: SourceUrlPart[] }) {
   if (sources.length === 0) return null;
@@ -93,12 +100,50 @@ function SourceList({ sources }: { sources: SourceUrlPart[] }) {
   );
 }
 
+function BranchButton({
+  align,
+  disabled,
+  isBranching,
+  onClick,
+}: {
+  align: "start" | "end";
+  disabled?: boolean;
+  isBranching?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label="Branch from this message"
+      title="Branch from this message"
+      className={cn(
+        "flex items-center gap-1 rounded-md px-1 py-0.5 text-xs text-muted-foreground opacity-0",
+        "transition-opacity duration-150 group-hover:opacity-100 focus-visible:opacity-100",
+        "hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-0",
+        align === "end" ? "self-end" : "self-start",
+      )}
+    >
+      {isBranching ? <Spinner className="size-3" /> : <GitBranchIcon className="size-3" />}
+      Branch
+    </button>
+  );
+}
+
 type ChatMessagesProps = {
   messages: UIMessage[];
   status: ChatStatus;
+  onBranch?: (messageId: string) => void;
+  branchingMessageId?: string;
 };
 
-export function ChatMessages({ messages, status }: ChatMessagesProps) {
+export function ChatMessages({
+  messages,
+  status,
+  onBranch,
+  branchingMessageId,
+}: ChatMessagesProps) {
   const isWaiting = status === "submitted" && messages.at(-1)?.role === "user";
 
   return (
@@ -117,6 +162,15 @@ export function ChatMessages({ messages, status }: ChatMessagesProps) {
                 <MessageResponse>{getMessageText(message)}</MessageResponse>
                 <SourceList sources={sourceParts} />
               </MessageContent>
+
+              {onBranch ? (
+                <BranchButton
+                  align={message.role === "user" ? "end" : "start"}
+                  disabled={status !== "ready"}
+                  isBranching={branchingMessageId === message.id}
+                  onClick={() => onBranch(message.id)}
+                />
+              ) : null}
             </Message>
           );
         })}
