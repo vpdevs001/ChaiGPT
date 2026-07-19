@@ -4,7 +4,11 @@ import { currentUser } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 import type { User } from "@/lib/generated/prisma/client";
 
-export async function onBoard() {
+/**
+ * Sync the signed-in Clerk user into the database on each protected visit.
+ * Creates the user on first sign-in, updates profile fields on later visits.
+ */
+export async function onBoard(): Promise<User> {
   const clerkUser = await currentUser();
 
   if (!clerkUser) {
@@ -16,6 +20,7 @@ export async function onBoard() {
   return prisma.user.upsert({
     where: { clerkId: clerkUser.id },
     create: {
+      id: clerkUser.id,
       clerkId: clerkUser.id,
       email,
       firstName: clerkUser.firstName,

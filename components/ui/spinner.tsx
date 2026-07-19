@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
-import { SpinnerIcon } from "@phosphor-icons/react";
+import { Loader2Icon } from "lucide-react";
 
 function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
   return (
-    <SpinnerIcon
+    <Loader2Icon
       data-slot="spinner"
       role="status"
       aria-label="Loading"
