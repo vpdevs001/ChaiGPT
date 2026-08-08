@@ -57,6 +57,19 @@ export default function RootLayout({
             >
               <TooltipProvider>
                 {children}
+                <Analytics
+                  siteId={process.env.NEXT_PUBLIC_NUDGEKIT_SITE_ID!}
+                  siteId="site_your_id"
+                  heatmaps={{
+                    sampleRate: 0.2,
+                    captureText: false,
+                    includePaths: ["/", "/pricing"],
+                  }}
+                  sessionReplay={{
+                    sampleRate: 0.1,
+                    includePaths: ["/", "/pricing", "/signup"],
+                  }}
+                />
                 <Toaster />
               </TooltipProvider>
             </ThemeProvider>
