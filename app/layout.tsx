@@ -7,6 +7,7 @@ import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Analytics } from "nudgekit-analytics"
 
 const ibmPlexSans = IBM_Plex_Sans({
   subsets: ["latin"],
@@ -59,7 +60,6 @@ export default function RootLayout({
                 {children}
                 <Analytics
                   siteId={process.env.NEXT_PUBLIC_NUDGEKIT_SITE_ID!}
-                  siteId="site_your_id"
                   heatmaps={{
                     sampleRate: 0.2,
                     captureText: false,
